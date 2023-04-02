@@ -6,52 +6,71 @@ import sys
 import time
 import aiohttp
 from yarl import URL
+from abc import ABC, abstractmethod
 
-# https://twitter.com/BBCBweaking
-#   -> https://nuwus.org -> https://nuwus.org/more_info.html
-#   -> "Newsgathering, parsing, and tweeting takes place via zuzakistan/civilservant"
-#   -> https://github.com/zuzakistan/civilservant/blob/master/plugins/news.js
-#      ^ port of this file
+# https://github.com/zuzakistan/civilservant/blob/master/plugins/news.js
+# https://github.com/zuzakistan/civilservant/blob/main/modules/news.js
 
 logger = logging.getLogger(__name__)
 
-@dataclass
+@dataclass(frozen=True, slots=True, kw_only=True)
+class NewsItem:
+    headline: str
+    id: str
+
+@dataclass(frozen=True, slots=True)
 class NewsAPI:
     url: URL
 
-    def custom_decoder(self, data):
-        return data
+    @abstractmethod
+    async def decode(self, response: aiohttp.ClientResponse) -> NewsItem | None:
+        ...
 
     async def request(self, session: aiohttp.ClientSession):
-        resp = await session.get(self.url)
-        try:
-            data = await resp.json()
-            logger.debug(f'{self.url=} {data=}')
-        except:
-            return
-        try:
-            val = self.custom_decoder(data)
-        except:
-            logger.exception('custom_decoder failed')
-            return
-        if val is None:
-            return
-        logger.info(f'got data from {self.url} | {val=!r} | ({data=!r})')
-
+        async with session.get(self.url) as resp:
+            logger.debug(f'from {self.url!r} got {await resp.read()!r}')
+            try:
+                val = await self.decode(resp)
+            except:
+                logger.exception(f'decode failed! (raw response was {await resp.read()!r})')
+                return
+            if val is None:
+                return
+            logger.info(f'got data from {self.url!r} | {val=!r}')
 
 class BBCApi(NewsAPI):
-    def custom_decoder(self, data):
-        asset = data.get('asset')
-        if len(asset) == 0:
-            return None
-        return asset
+    async def decode(self, response: aiohttp.ClientResponse):
+        match await response.json():
+            case {'asset': {'headline': str(headline), 'assetUri': str(uri)}}:
+                return NewsItem(headline=headline, id=f'BBC:{headline}:{uri}')
+            case {'asset': {}}:
+                return None
+            case _:
+                assert False  # TODO message
+
+class ReutersApi(NewsAPI):
+    async def decode(self, response: aiohttp.ClientResponse):
+        # reuters sends an empty* response when there's no news so parsing will fail
+        #  * not actually empty, it's '\n'
+        try:
+            data = await response.json()
+        except:
+            return
+        if data is None:
+            return
+        match data:
+            case {'headline': str(headline)}:
+                # TODO there's some other logic in their version, check what's up with that
+                return NewsItem(headline=headline, id=headline)
+            case _:
+                assert False  # TODO message
 
 APIS: list[NewsAPI] = [
     BBCApi(URL('http://polling.bbc.co.uk/news/breaking-news/audience/domestic')),
     BBCApi(URL('http://polling.bbc.co.uk/news/breaking-news/audience/asia')),
     BBCApi(URL('http://polling.bbc.co.uk/news/breaking-news/audience/us')),
     BBCApi(URL('http://polling.bbc.co.uk/news/breaking-news/audience/international')),
-    NewsAPI(URL('http://reuters.com/assets/breakingNews?view=json')),
+    ReutersApi(URL('http://reuters.com/assets/breakingNews?view=json')),
 ]
 
 POLL_TIMEOUT = 30
