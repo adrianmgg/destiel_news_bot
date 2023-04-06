@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::{Write, BufReader}, fs::OpenOptions};
 
 use clap::Parser;
 use destielbot_rs::cli::Cli;
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
                 .create(true)
                 .open(&schema_file_path)
                 .into_diagnostic()
-                .wrap_err(format!("failed to open {}", schema_file_path.display()))?;
+                .wrap_err_with(|| format!("failed to open {}", schema_file_path.display()))?;
             let schema = schemars::schema_for!(NewsSources);
             schema_file
                 .write(
@@ -39,6 +39,19 @@ fn main() -> Result<()> {
                         .as_bytes(),
                 )
                 .into_diagnostic()?;
+        }
+        destielbot_rs::cli::Commands::Thing { sources_file_path } => {
+            let sources_file = OpenOptions::new()
+                .read(true)
+                .create(false)
+                .open(&sources_file_path)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("failed to open {}", sources_file_path.display()))?;
+            let sources_reader = BufReader::new(sources_file);
+            let sources: NewsSources = serde_json::from_reader(sources_reader)
+                .into_diagnostic()
+                .wrap_err("failed to parse sources list")?;
+            dbg!(sources);
         }
     }
 

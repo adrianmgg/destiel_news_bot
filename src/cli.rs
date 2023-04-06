@@ -17,7 +17,12 @@ pub enum Commands {
     /// write schema files
     Schema {
         /// folder to write schemas into (will be created if it doesn't already exist)
-        #[arg(short, long, value_name = "FILE", default_value = "./schemas/")]
-        out_dir: PathBuf
+        #[arg(short, long, value_name = "FILE", default_value = "schemas")]
+        out_dir: PathBuf,
+    },
+    Thing {
+        /// json file with list of api sources
+        #[arg(long = "sources", value_name = "FILE", default_value = "sources.json")]
+        sources_file_path: PathBuf,
     },
 }
