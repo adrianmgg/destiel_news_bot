@@ -6,11 +6,19 @@ use reqwest::Url;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::{fs, io::AsyncWriteExt};
+use futures::StreamExt;
+use custom_debug::Debug;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 enum NewsSource {
-    BBC { url: Url },
-    Reuters { url: Url },
+    BBC {
+        #[debug(format = "{}")]
+        url: Url,
+    },
+    Reuters {
+        #[debug(format = "{}")]
+        url: Url,
+    },
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -18,8 +26,10 @@ struct NewsSources {
     sources: Vec<NewsSource>,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -51,7 +61,18 @@ async fn main() -> Result<()> {
             let sources: NewsSources = serde_json::from_str(&sources_str)
                 .into_diagnostic()
                 .wrap_err("failed to parse sources list")?;
-            dbg!(sources);
+            let mut stream = tokio_stream::iter(sources.sources)
+                .map(|source| {
+                    async move {
+                        tracing::info!("start {:?}", source);
+                        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+                        tracing::info!("end   {:?}", source);
+                    }
+                })
+                .buffer_unordered(2);
+            while let Some(_) = stream.next().await {
+                // ...
+            }
         }
     }
 

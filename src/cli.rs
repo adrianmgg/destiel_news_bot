@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
 pub struct Cli {
     // TODO: log level flag? (like in https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html#quick-start)
