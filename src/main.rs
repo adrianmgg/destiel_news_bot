@@ -1,4 +1,3 @@
-use std::{io::{Write, BufReader}, fs::OpenOptions};
 
 use clap::Parser;
 use destielbot_rs::cli::Cli;
@@ -6,6 +5,7 @@ use miette::{Context, IntoDiagnostic, Result};
 use reqwest::Url;
 use schemars::JsonSchema;
 use serde::Deserialize;
+use tokio::{fs, io::AsyncWriteExt};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 enum NewsSource {
@@ -18,37 +18,37 @@ struct NewsSources {
     sources: Vec<NewsSource>,
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
         destielbot_rs::cli::Commands::Schema { out_dir } => {
-            std::fs::create_dir_all(&out_dir).into_diagnostic()?;
+            fs::create_dir_all(&out_dir).await.into_diagnostic()?;
             let schema_file_path = out_dir.join("news-sources.schema.json");
-            let mut schema_file = std::fs::OpenOptions::new()
+            let mut schema_file = fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .open(&schema_file_path)
+                .await
                 .into_diagnostic()
-                .wrap_err_with(|| format!("failed to open {}", schema_file_path.display()))?;
+                .wrap_err_with(|| format!("failed to open output file ({})", schema_file_path.display()))?;
             let schema = schemars::schema_for!(NewsSources);
             schema_file
-                .write(
+                .write_all(
                     serde_json::to_string_pretty(&schema)
                         .into_diagnostic()?
                         .as_bytes(),
                 )
+                .await
                 .into_diagnostic()?;
         }
         destielbot_rs::cli::Commands::Thing { sources_file_path } => {
-            let sources_file = OpenOptions::new()
-                .read(true)
-                .create(false)
-                .open(&sources_file_path)
+            let sources_str = fs::read_to_string(&sources_file_path)
+                .await
                 .into_diagnostic()
-                .wrap_err_with(|| format!("failed to open {}", sources_file_path.display()))?;
-            let sources_reader = BufReader::new(sources_file);
-            let sources: NewsSources = serde_json::from_reader(sources_reader)
+                .wrap_err_with(|| format!("failed to open sources list ({})", sources_file_path.display()))?;
+            let sources: NewsSources = serde_json::from_str(&sources_str)
                 .into_diagnostic()
                 .wrap_err("failed to parse sources list")?;
             dbg!(sources);
