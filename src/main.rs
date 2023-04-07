@@ -128,23 +128,40 @@ async fn main() -> Result<()> {
             let sources: NewsSources = serde_json::from_str(&sources_str)
                 .into_diagnostic()
                 .wrap_err("failed to parse sources list")?;
-            // let client = reqwest::Client::new();
             let client = reqwest::Client::builder().build().into_diagnostic()?;
-            let _stories: Vec<_> = tokio_stream::iter(
-                sources.sources.iter()
-                    .map(|source| {
-                        let req = client.get(source.url.clone()).send();
-                        async move {
-                            match req.await {
-                                Ok(resp) => {
-                                    tracing::info!("{:?}", resp.text().await.unwrap());
-                                    Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() })
-                                },
-                                Err(_) => None,
-                            }
+            let stories: Vec<_> = tokio_stream::iter(sources.sources)
+                .map(|source| {
+                    let req = client.get(source.url.clone()).send();
+                    async move {
+                        let resp = req.await?;
+                        match source.kind {
+                            NewsSourceKind::BBC => {
+                                match resp.json::<BBCApiResponse>().await?.asset {
+                                    None => Ok(None),
+                                    Some(asset) => Ok(Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() })),
+                                }
+                            },
+                            NewsSourceKind::Reuters => {
+                                // TODO
+                                Ok(Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() }))
+                            },
                         }
-                    })
-            ).buffer_unordered(2).collect().await;
+                        Ok(Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() }))
+                    }
+                })
+                .buffer_unordered(2)
+                // TODO would be better to do the filter out nones without the second collect
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .filter_map(|res| match res {
+                    Err(err) => {
+                        None
+                    },
+                    Ok(story_opt) => story_opt,
+                })
+                .collect();
+            dbg!(stories);
         }
     }
 
