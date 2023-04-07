@@ -12,10 +12,11 @@ use custom_debug::Debug;
 enum NewsSourceKind { BBC, Reuters }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-struct NewsSource {
-    #[debug(format = "{}")]
-    url: Url,
-    kind: NewsSourceKind,
+enum NewsSource {
+    BBC {
+        #[debug(format = "{}")]
+        url: Url,
+    },
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -92,6 +93,16 @@ mod tests {
     }
 }
 
+// TODO give this a proper name
+async fn qux(client: reqwest::Client, source: NewsSource) -> Result<Option<NewsStory>> {
+    match source {
+        NewsSource::BBC { url } => {
+            tracing::info!("{}", url);
+        },
+    }
+    Ok(None)
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
@@ -131,23 +142,8 @@ async fn main() -> Result<()> {
             let client = reqwest::Client::builder().build().into_diagnostic()?;
             let stories: Vec<_> = tokio_stream::iter(sources.sources)
                 .map(|source| {
-                    let req = client.get(source.url.clone()).send();
-                    async move {
-                        let resp = req.await?;
-                        match source.kind {
-                            NewsSourceKind::BBC => {
-                                match resp.json::<BBCApiResponse>().await?.asset {
-                                    None => Ok(None),
-                                    Some(asset) => Ok(Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() })),
-                                }
-                            },
-                            NewsSourceKind::Reuters => {
-                                // TODO
-                                Ok(Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() }))
-                            },
-                        }
-                        Ok(Some(NewsStory{ id: "TODO".to_string(), headline: "TODO".to_string() }))
-                    }
+                    // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
+                    qux(client.clone(), source)
                 })
                 .buffer_unordered(2)
                 // TODO would be better to do the filter out nones without the second collect

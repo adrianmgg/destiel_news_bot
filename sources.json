@@ -1,10 +1,10 @@
 {
     "$schema": "./schemas/news-sources.schema.json",
     "sources": [
-        { "kind": "BBC", "url": "http://polling.bbc.co.uk/news/breaking-news/audience/domestic" },
-        { "kind": "BBC", "url": "http://polling.bbc.co.uk/news/breaking-news/audience/asia" },
-        { "kind": "BBC", "url": "http://polling.bbc.co.uk/news/breaking-news/audience/us" },
-        { "kind": "BBC", "url": "http://polling.bbc.co.uk/news/breaking-news/audience/international" },
-        { "kind": "Reuters", "url": "http://reuters.com/assets/breakingNews?view=json" }
+        { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/domestic" } },
+        { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/asia" } },
+        { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/us" } },
+        { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/international" } },
+        { "Reuters": { "url": "http://reuters.com/assets/breakingNews?view=json" } }
     ]
 }
