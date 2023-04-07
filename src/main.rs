@@ -7,6 +7,7 @@ use serde::Deserialize;
 use tokio::{fs, io::AsyncWriteExt};
 use futures::StreamExt;
 use custom_debug::Debug;
+use tracing_subscriber::{prelude::*, Layer};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 enum NewsSource {
@@ -89,15 +90,14 @@ mod tests {
     }
 }
 
-// TODO give this a proper name
-async fn request_news_source(client: reqwest::Client, source: NewsSource) -> Result<Option<NewsStory>, reqwest::Error> {
+async fn request_news_source(client: reqwest::Client, source: NewsSource) -> Result<Option<NewsStory>> {
     match source {
         NewsSource::BBC { url } => {
             let response: BBCApiResponse = client.get(url)
                 .send()
-                .await?
+                .await.into_diagnostic()?
                 .json()
-                .await?;
+                .await.into_diagnostic()?;
             match response.asset {
                 Some(asset) => Ok(Some(NewsStory{
                     id: format!("BBC_{}", asset.asset_id),
@@ -112,9 +112,37 @@ async fn request_news_source(client: reqwest::Client, source: NewsSource) -> Res
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
-
     let cli = Cli::parse();
+
+    let mut layers = Vec::new();
+
+    layers.push(
+        tracing_subscriber::fmt::layer()
+            .with_filter(tracing_subscriber::filter::LevelFilter::from_level(cli.log_level))
+            .boxed()
+    );
+
+    if let Some(logfile_path) = &cli.logfile {
+        if let Some(parent) = logfile_path.parent() {
+            fs::create_dir_all(parent).await.into_diagnostic()?;
+        }
+        let logfile = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&logfile_path)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("failed to open log file ({})", logfile_path.display()))?;
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_writer(std::sync::Arc::new(logfile))
+                .with_filter(tracing_subscriber::filter::LevelFilter::from_level(cli.logfile_level))
+                .boxed()
+        );
+    }
+
+    tracing_subscriber::registry()
+        .with(layers)
+        .init();
 
     match cli.command {
         destielbot_rs::cli::Commands::Schema { out_dir } => {
@@ -153,18 +181,21 @@ async fn main() -> Result<()> {
                     request_news_source(client.clone(), source)
                 })
                 .buffer_unordered(2)
+                .filter_map(|x| async move {
+                    match x {
+                        Ok(Some(story)) => Some(story),
+                        Ok(None) => None, // TODO - debug log here that it succeeded but got nothing?
+                        Err(e) => {
+                            // "{:?}" gives the format we want (miette's fancy stuff)
+                            tracing::error!("encountered error while requesting news: {:?}", e);
+                            None
+                        }
+                    }
+                })
                 // TODO would be better to do the filter out nones without the second collect
                 .collect::<Vec<_>>()
-                .await
-                .into_iter()
-                .filter_map(|res| match res {
-                    Err(err) => {
-                        None
-                    },
-                    Ok(story_opt) => story_opt,
-                })
-                .collect();
-            dbg!(stories);
+                .await;
+            tracing::info!("{:?}", stories);
         }
     }
 

@@ -6,7 +6,16 @@ use clap::{Parser, Subcommand};
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
 pub struct Cli {
-    // TODO: log level flag? (like in https://docs.rs/clap/latest/clap/_derive/_tutorial/index.html#quick-start)
+    /// lowest log level to display to stdout (error, warn, info, debug, or trace)
+    #[arg(long, default_value = "warn")]
+    pub log_level: tracing::Level,
+    
+    /// lowest log level to write to log file (error, warn, info, debug, or trace)
+    #[arg(long, default_value = "warn")]
+    pub logfile_level: tracing::Level,
+
+    #[arg(long)]
+    pub logfile: Option<PathBuf>,
 
     #[command(subcommand)]
     pub command: Commands,
