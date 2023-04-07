@@ -9,9 +9,6 @@ use futures::StreamExt;
 use custom_debug::Debug;
 
 #[derive(Debug, Deserialize, JsonSchema)]
-enum NewsSourceKind { BBC, Reuters }
-
-#[derive(Debug, Deserialize, JsonSchema)]
 enum NewsSource {
     BBC {
         #[debug(format = "{}")]
@@ -28,8 +25,7 @@ struct NewsSources {
 struct NewsStory {
     id: String,
     headline: String,
-    // TODO
-    // story_url: Url,
+    story_url: String,
 }
 
 // from https://stackoverflow.com/a/69458453/8762161
@@ -94,13 +90,24 @@ mod tests {
 }
 
 // TODO give this a proper name
-async fn qux(client: reqwest::Client, source: NewsSource) -> Result<Option<NewsStory>> {
+async fn request_news_source(client: reqwest::Client, source: NewsSource) -> Result<Option<NewsStory>, reqwest::Error> {
     match source {
         NewsSource::BBC { url } => {
-            tracing::info!("{}", url);
+            let response: BBCApiResponse = client.get(url)
+                .send()
+                .await?
+                .json()
+                .await?;
+            match response.asset {
+                Some(asset) => Ok(Some(NewsStory{
+                    id: format!("BBC_{}", asset.asset_id),
+                    headline: asset.headline,
+                    story_url: format!("https://bbc.co.uk{}", asset.asset_uri),  // TODO - use Url instead?
+                })),
+                _ => Ok(None),
+            }
         },
     }
-    Ok(None)
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -143,7 +150,7 @@ async fn main() -> Result<()> {
             let stories: Vec<_> = tokio_stream::iter(sources.sources)
                 .map(|source| {
                     // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
-                    qux(client.clone(), source)
+                    request_news_source(client.clone(), source)
                 })
                 .buffer_unordered(2)
                 // TODO would be better to do the filter out nones without the second collect
