@@ -104,14 +104,20 @@ async fn main() -> Result<()> {
         },
         destielbot_rs::cli::Commands::ImageTest { config_info } => {
             let config = load_config(&config_info)?;
-            let mut outfile = std::fs::OpenOptions::new()
-                .write(true)
-                .truncate(true)
-                .create(true)
-                .open("./generated.png")
-                .into_diagnostic()
-                .wrap_err("failed to open output file")?;
-            generate_image(&config.image_gen_cfg, "14-year-old girl died and 16-year-old boy arrested on suspicion of murder after Thursday", &mut outfile)?;
+            for (i, headline) in std::fs::read_to_string("headlines.txt")
+                .into_diagnostic()?
+                .lines()
+                .enumerate()
+            {
+                let mut outfile = std::fs::OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .create(true)
+                    .open(format!("./generated_{}.png", i))
+                    .into_diagnostic()
+                    .wrap_err("failed to open output file")?;
+                generate_image(&config.image_gen_cfg, &headline, &mut outfile)?;
+            }
         },
     }
 
