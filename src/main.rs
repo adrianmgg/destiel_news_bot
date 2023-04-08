@@ -90,7 +90,39 @@ async fn main() -> Result<()> {
                 .collect::<Vec<_>>()
                 .await;
             tracing::info!("{:?}", stories);
-        }
+        },
+        destielbot_rs::cli::Commands::ImageTest { } => {
+            let mut infile = std::fs::File::open("./template.png")
+                .into_diagnostic()
+                .wrap_err("failed to open template image file")?;
+            let img = cairo::ImageSurface::create_from_png(&mut infile)
+                .into_diagnostic()
+                .wrap_err("failed to load template image")?;
+            drop(infile);
+            let ctx = cairo::Context::new(img).into_diagnostic()?;
+            ctx.select_font_face("Impact", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
+            let pos_x: f64 = 20.0;
+            let pos_y: f64 = 20.0;
+            let text = "Lorem ipsum dolor sit amet";
+            ctx.move_to(pos_x, pos_y);
+            ctx.set_font_size(32.0);
+            ctx.text_path(text);
+            ctx.set_source_rgb(1.0, 0.0, 0.0);
+            ctx.stroke().into_diagnostic()?;
+            ctx.move_to(pos_x, pos_y);
+            ctx.text_path(text);
+            ctx.set_source_rgb(0.0, 1.0, 0.0);
+            ctx.fill().into_diagnostic()?;
+            let mut outfile = std::fs::OpenOptions::new()
+                .write(true)
+                .truncate(true)
+                .create(true)
+                .open("./generated.png")
+                .into_diagnostic()
+                .wrap_err("failed to open output file")?;
+            ctx.target().write_to_png(&mut outfile).into_diagnostic()?;
+            drop(outfile);
+        },
     }
 
     Ok(())

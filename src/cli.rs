@@ -34,4 +34,6 @@ pub enum Commands {
         #[arg(long = "sources", value_name = "FILE", default_value = "sources.json")]
         sources_file_path: PathBuf,
     },
+    ImageTest {
+    },
 }
