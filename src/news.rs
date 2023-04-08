@@ -12,11 +12,6 @@ pub enum NewsSource {
     },
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct NewsSources {
-    pub sources: Vec<NewsSource>,
-}
-
 #[derive(Debug)]
 pub struct NewsStory {
     pub id: String,

@@ -1,9 +1,26 @@
 use clap::Parser;
-use destielbot_rs::{cli::Cli, news::{NewsSources, request_news_source}};
+use destielbot_rs::{cli::{Cli, ConfigFileArgs}, news::{request_news_source, NewsSource}, image::{ImageGenConfig, generate_image}};
 use miette::{Context, IntoDiagnostic, Result};
+use schemars::JsonSchema;
+use serde::Deserialize;
 use tokio::{fs, io::AsyncWriteExt};
 use futures::StreamExt;
 use tracing_subscriber::{prelude::*, Layer};
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Config {
+    image_gen_cfg: ImageGenConfig,
+    news_sources: Vec<NewsSource>,
+}
+
+fn load_config(config_info: &ConfigFileArgs) -> Result<Config> {
+    let sources_str = std::fs::read_to_string(&config_info.config_file_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("failed to open config file ({})", config_info.config_file_path.display()))?;
+    serde_json::from_str::<Config>(&sources_str)
+        .into_diagnostic()
+        .wrap_err("failed to parse config file")
+}
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
@@ -42,7 +59,7 @@ async fn main() -> Result<()> {
     match cli.command {
         destielbot_rs::cli::Commands::Schema { out_dir } => {
             fs::create_dir_all(&out_dir).await.into_diagnostic()?;
-            let schema_file_path = out_dir.join("news-sources.schema.json");
+            let schema_file_path = out_dir.join("config.schema.json");
             let mut schema_file = fs::OpenOptions::new()
                 .write(true)
                 .create(true)
@@ -51,7 +68,7 @@ async fn main() -> Result<()> {
                 .await
                 .into_diagnostic()
                 .wrap_err_with(|| format!("failed to open output file ({})", schema_file_path.display()))?;
-            let schema = schemars::schema_for!(NewsSources);
+            let schema = schemars::schema_for!(Config);
             schema_file
                 .write_all(
                     serde_json::to_string_pretty(&schema)
@@ -61,16 +78,10 @@ async fn main() -> Result<()> {
                 .await
                 .into_diagnostic()?;
         }
-        destielbot_rs::cli::Commands::Thing { sources_file_path } => {
-            let sources_str = fs::read_to_string(&sources_file_path)
-                .await
-                .into_diagnostic()
-                .wrap_err_with(|| format!("failed to open sources list ({})", sources_file_path.display()))?;
-            let sources: NewsSources = serde_json::from_str(&sources_str)
-                .into_diagnostic()
-                .wrap_err("failed to parse sources list")?;
+        destielbot_rs::cli::Commands::Thing { config_info } => {
+            let config = load_config(&config_info)?;
             let client = reqwest::Client::builder().build().into_diagnostic()?;
-            let stories: Vec<_> = tokio_stream::iter(sources.sources)
+            let stories: Vec<_> = tokio_stream::iter(config.news_sources)
                 .map(|source| {
                     // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
                     request_news_source(client.clone(), source)
@@ -91,28 +102,8 @@ async fn main() -> Result<()> {
                 .await;
             tracing::info!("{:?}", stories);
         },
-        destielbot_rs::cli::Commands::ImageTest { } => {
-            let mut infile = std::fs::File::open("./template.png")
-                .into_diagnostic()
-                .wrap_err("failed to open template image file")?;
-            let img = cairo::ImageSurface::create_from_png(&mut infile)
-                .into_diagnostic()
-                .wrap_err("failed to load template image")?;
-            drop(infile);
-            let ctx = cairo::Context::new(img).into_diagnostic()?;
-            ctx.select_font_face("Impact", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
-            let pos_x: f64 = 20.0;
-            let pos_y: f64 = 20.0;
-            let text = "Lorem ipsum dolor sit amet";
-            ctx.move_to(pos_x, pos_y);
-            ctx.set_font_size(32.0);
-            ctx.text_path(text);
-            ctx.set_source_rgb(1.0, 0.0, 0.0);
-            ctx.stroke().into_diagnostic()?;
-            ctx.move_to(pos_x, pos_y);
-            ctx.text_path(text);
-            ctx.set_source_rgb(0.0, 1.0, 0.0);
-            ctx.fill().into_diagnostic()?;
+        destielbot_rs::cli::Commands::ImageTest { config_info } => {
+            let config = load_config(&config_info)?;
             let mut outfile = std::fs::OpenOptions::new()
                 .write(true)
                 .truncate(true)
@@ -120,8 +111,7 @@ async fn main() -> Result<()> {
                 .open("./generated.png")
                 .into_diagnostic()
                 .wrap_err("failed to open output file")?;
-            ctx.target().write_to_png(&mut outfile).into_diagnostic()?;
-            drop(outfile);
+            generate_image(&config.image_gen_cfg, "14-year-old girl died and 16-year-old boy arrested on suspicion of murder after Thursday", &mut outfile)?;
         },
     }
 

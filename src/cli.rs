@@ -1,13 +1,13 @@
 
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, Args};
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None, arg_required_else_help(true))]
 pub struct Cli {
     /// lowest log level to display to stdout (error, warn, info, debug, or trace)
-    #[arg(long, default_value = "warn")]
+    #[arg(long, default_value = "info")]
     pub log_level: tracing::Level,
     
     /// lowest log level to write to log file (error, warn, info, debug, or trace)
@@ -30,10 +30,17 @@ pub enum Commands {
         out_dir: PathBuf,
     },
     Thing {
-        /// json file with list of api sources
-        #[arg(long = "sources", value_name = "FILE", default_value = "sources.json")]
-        sources_file_path: PathBuf,
+        #[command(flatten)]
+        config_info: ConfigFileArgs,
     },
     ImageTest {
+        #[command(flatten)]
+        config_info: ConfigFileArgs,
     },
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigFileArgs {
+    #[arg(long = "config", value_name = "FILE", default_value = "config.json")]
+    pub config_file_path: PathBuf,
 }
