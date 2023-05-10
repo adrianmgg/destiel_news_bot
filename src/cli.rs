@@ -37,10 +37,20 @@ pub enum Commands {
         #[command(flatten)]
         config_info: ConfigFileArgs,
     },
+    TumblrAuthTest {
+        #[command(flatten)]
+        config_info: ConfigFileArgs,
+    },
+    TumblrApiTest {
+        #[command(flatten)]
+        config_info: ConfigFileArgs,
+    },
 }
 
 #[derive(Debug, Args)]
 pub struct ConfigFileArgs {
     #[arg(long = "config", value_name = "FILE", default_value = "config.json")]
     pub config_file_path: PathBuf,
+    #[arg(long = "api-config", value_name = "FILE", default_value = "api.json")]
+    pub apiconfig_file_path: PathBuf,
 }

@@ -1,1 +1,5 @@
 /target
+
+# don't commit your api keys
+api.json
+.oauth2-token.json

@@ -1,5 +1,5 @@
 use clap::Parser;
-use destielbot_rs::{cli::{Cli, ConfigFileArgs}, news::{request_news_source, NewsSource}, image::{ImageGenConfig, generate_image}};
+use destielbot_rs::{cli::{Cli, ConfigFileArgs}, news::{request_news_source, NewsSource}, image::{ImageGenConfig, generate_image}, tumblr::TumblrApiConfig};
 use miette::{Context, IntoDiagnostic, Result};
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -13,13 +13,25 @@ struct Config {
     news_sources: Vec<NewsSource>,
 }
 
-fn load_config(config_info: &ConfigFileArgs) -> Result<Config> {
-    let sources_str = std::fs::read_to_string(&config_info.config_file_path)
+#[derive(Debug, Deserialize, JsonSchema)]
+struct ApiConfig {
+    tumblr_api: TumblrApiConfig,
+}
+
+fn load_config(config_info: &ConfigFileArgs) -> Result<(Config, ApiConfig)> {
+    let config = std::fs::read_to_string(&config_info.config_file_path)
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to open config file ({})", config_info.config_file_path.display()))?;
-    serde_json::from_str::<Config>(&sources_str)
+    let api_config = std::fs::read_to_string(&config_info.apiconfig_file_path)
         .into_diagnostic()
-        .wrap_err("failed to parse config file")
+        .wrap_err_with(|| format!("failed to open config file ({})", config_info.apiconfig_file_path.display()))?;
+    let config = serde_json::from_str::<Config>(&config)
+        .into_diagnostic()
+        .wrap_err("failed to parse config file")?;
+    let api_config = serde_json::from_str::<ApiConfig>(&api_config)
+        .into_diagnostic()
+        .wrap_err("failed to parse config file")?;
+    Ok((config, api_config))
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -59,19 +71,33 @@ async fn main() -> Result<()> {
     match cli.command {
         destielbot_rs::cli::Commands::Schema { out_dir } => {
             fs::create_dir_all(&out_dir).await.into_diagnostic()?;
-            let schema_file_path = out_dir.join("config.schema.json");
-            let mut schema_file = fs::OpenOptions::new()
+            let config_schema_file_path = out_dir.join("config.schema.json");
+            let apiconfig_schema_file_path = out_dir.join("api.schema.json");
+            fs::OpenOptions::new()
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .open(&schema_file_path)
+                .open(&config_schema_file_path)
                 .await
                 .into_diagnostic()
-                .wrap_err_with(|| format!("failed to open output file ({})", schema_file_path.display()))?;
-            let schema = schemars::schema_for!(Config);
-            schema_file
+                .wrap_err_with(|| format!("failed to open output file ({})", config_schema_file_path.display()))?
                 .write_all(
-                    serde_json::to_string_pretty(&schema)
+                    serde_json::to_string_pretty(&schemars::schema_for!(Config))
+                        .into_diagnostic()?
+                        .as_bytes(),
+                )
+                .await
+                .into_diagnostic()?;
+            fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&apiconfig_schema_file_path)
+                .await
+                .into_diagnostic()
+                .wrap_err_with(|| format!("failed to open output file ({})", apiconfig_schema_file_path.display()))?
+                .write_all(
+                    serde_json::to_string_pretty(&schemars::schema_for!(ApiConfig))
                         .into_diagnostic()?
                         .as_bytes(),
                 )
@@ -79,7 +105,7 @@ async fn main() -> Result<()> {
                 .into_diagnostic()?;
         }
         destielbot_rs::cli::Commands::Thing { config_info } => {
-            let config = load_config(&config_info)?;
+            let (config, _apiconfig) = load_config(&config_info)?;
             let client = reqwest::Client::builder().build().into_diagnostic()?;
             let stories: Vec<_> = tokio_stream::iter(config.news_sources)
                 .map(|source| {
@@ -103,7 +129,7 @@ async fn main() -> Result<()> {
             tracing::info!("{:?}", stories);
         },
         destielbot_rs::cli::Commands::ImageTest { config_info } => {
-            let config = load_config(&config_info)?;
+            let (config, _apiconfig) = load_config(&config_info)?;
             for (i, headline) in std::fs::read_to_string("headlines.txt")
                 .into_diagnostic()?
                 .lines()
@@ -119,6 +145,14 @@ async fn main() -> Result<()> {
                 generate_image(&config.image_gen_cfg, &headline, &mut outfile)?;
             }
         },
+        destielbot_rs::cli::Commands::TumblrAuthTest { config_info } => {
+            let (_config, apiconfig) = load_config(&config_info)?;
+            destielbot_rs::tumblr::tumblr_auth_test(&apiconfig.tumblr_api).await?;
+        }
+        destielbot_rs::cli::Commands::TumblrApiTest { config_info } => {
+            let (_config, apiconfig) = load_config(&config_info)?;
+            destielbot_rs::tumblr::tumblr_api_test(&apiconfig.tumblr_api).await?;
+        }
     }
 
     Ok(())

@@ -7,10 +7,12 @@ edition = "2021"
 
 [dependencies]
 cairo-rs = { version = "0.17.0", default-features = false, features = ["png"] }
+chrono = { version = "0.4.24", features = ["serde"] }
 clap = { version = "4.2.1", features = ["derive"] }
 custom_debug = "0.5.1"
 futures = "0.3.28"
 miette = { version = "5.7.0", features = ["fancy"] }
+oauth2 = { version = "4.3.0", features = ["reqwest"] }
 pango = { version = "0.17.4", features = ["v1_50"] }
 pangocairo = "0.17.0"
 reqwest = { version = "0.11.16", features = ["json"] }
