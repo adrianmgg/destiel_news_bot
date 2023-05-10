@@ -152,7 +152,23 @@ pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
         .build()
         .into_diagnostic()?;
 
-    let user_info: ApiResponse<UserInfoResponse> = client.get("https://api.tumblr.com/v2/user/info")
+    // let user_info: ApiResponse<UserInfoResponse> = client.get("https://api.tumblr.com/v2/user/info")
+    //     .send()
+    //     .await
+    //     .into_diagnostic()?
+    //     .json()
+    //     .await
+    //     .into_diagnostic()?;
+
+    // tracing::info!("{:#?}", user_info);
+
+    let make_post_response: ApiResponse<serde_json::Value> = client.post("https://api.tumblr.com/v2/blog/amggs-theme-testing-thing/posts")
+        .json(&serde_json::json!({
+            "content": [
+                {"type": "text", "text": "hello world"},
+            ],
+            "tags": "test, hello, world, why is this not an array",
+        }))
         .send()
         .await
         .into_diagnostic()?
@@ -160,7 +176,7 @@ pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
         .await
         .into_diagnostic()?;
 
-    tracing::info!("{:#?}", user_info);
+    tracing::info!("{:#?}", make_post_response);
 
     Ok(())
 }
