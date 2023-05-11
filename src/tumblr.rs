@@ -2,6 +2,7 @@ use miette::{Result, IntoDiagnostic, Context};
 use oauth2::{basic::BasicClient, ClientId, ClientSecret, AuthUrl, TokenUrl, Scope, reqwest::async_http_client, TokenResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tumblr_api::npf;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct TumblrApiConfig {
@@ -137,7 +138,7 @@ pub struct CreatePostRequest {
     // pub layout: Option<Vec<tumblr_api::npf::LayoutObject>>, // TODO
     /// "The initial state of the new post, such as "published" or "queued"."
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub state: Option<String>, // TODO enum
+    pub state: Option<CreatePostState>,
     /// "The exact future date and time (ISO 8601 format) to publish the post, if desired. This parameter will be ignored unless the state parameter is "queue"."
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_on: Option<String>, // TODO some other type
@@ -167,6 +168,23 @@ pub struct CreatePostRequest {
 //      maybe best to do it as an enum of new post / reblog? since which fields are required is different
 //      between the two
 // TODO should we add `other_fields`s to requests too? or just response stuff
+
+/// https://www.tumblr.com/docs/en/api/v2#note-about-post-states
+/// "Posts can be in the following 'states' as indicated in requests to the post creation/editing endpoints"
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CreatePostState {
+    /// "the post should be publicly published immediately"
+    Published,
+    /// "the post should be added to the end of the blog's post queue"
+    Queue,
+    /// "the post should be saved as a draft"
+    Draft,
+    /// "the post should be privately published immediately"
+    Private,
+    /// "the post is a new submission"
+    Unapproved,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreatePostResponse {
@@ -214,15 +232,20 @@ pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
 
     let request_body = CreatePostRequest {
         content: vec![
-            tumblr_api::npf::ContentBlock::Text { text: "hello world!".to_string(), subtype: None, indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Chat)".to_string(),              subtype: Some(tumblr_api::npf::TextSubtype::Chat),              indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Heading1)".to_string(),          subtype: Some(tumblr_api::npf::TextSubtype::Heading1),          indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Heading2)".to_string(),          subtype: Some(tumblr_api::npf::TextSubtype::Heading2),          indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Indented)".to_string(),          subtype: Some(tumblr_api::npf::TextSubtype::Indented),          indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: OrderedListItem)".to_string(),   subtype: Some(tumblr_api::npf::TextSubtype::OrderedListItem),   indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Quirky)".to_string(),            subtype: Some(tumblr_api::npf::TextSubtype::Quirky),            indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Quote)".to_string(),             subtype: Some(tumblr_api::npf::TextSubtype::Quote),             indent_level: None, formatting: None },
-            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: UnorderedListItem)".to_string(), subtype: Some(tumblr_api::npf::TextSubtype::UnorderedListItem), indent_level: None, formatting: None },
+            npf::ContentBlock::Text(npf::ContentBlockText::builder().text("hello world!").build()),
+            npf::ContentBlockText::builder().text("hello world! (subtype: Chat)").subtype(npf::TextSubtype::Chat).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: Heading1)").subtype(npf::TextSubtype::Heading1).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: Heading2)").subtype(npf::TextSubtype::Heading2).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: Indented)").subtype(npf::TextSubtype::Indented).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: OrderedListItem)").subtype(npf::TextSubtype::OrderedListItem).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: Quirky)").subtype(npf::TextSubtype::Quirky).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: Quote)").subtype(npf::TextSubtype::Quote).build().into(),
+            npf::ContentBlockText::builder().text("hello world! (subtype: UnorderedListItem)").subtype(npf::TextSubtype::UnorderedListItem).build().into(),
+            npf::ContentBlockImage::builder()
+                .media(vec![npf::MediaObject::builder().url("https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/SMPTE_Color_Bars.svg/200px-SMPTE_Color_Bars.svg.png").build()])
+                .alt_text("SMPTE color bars test pattern")
+                .build()
+                .into(),
         ],
         state: None,
         publish_on: None,
@@ -231,7 +254,7 @@ pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
         source_url: Some("https://www.youtube.com/watch?v=dQw4w9WgXcQ".to_owned()),
         send_to_twitter: None,
         is_private: None,
-        slug: Some("this-post-gets-a-custom-slug".to_owned()),
+        slug: None,
         interactability_reblog: None,
     };
 
