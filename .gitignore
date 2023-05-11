@@ -3,3 +3,6 @@
 # don't commit your api keys
 api.json
 .oauth2-token.json
+
+# ignore generated schemas
+/schemas/
