@@ -23,4 +23,5 @@ tokio = { version = "1.27.0", features = ["full"] }
 tokio-stream = "0.1.12"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
+tumblr_api = { git = "https://github.com/adrianmgg/tumblr_api", version = "0.1.0" }
 url = { version = "2.3.1", features = ["serde"] }
