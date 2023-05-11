@@ -128,6 +128,56 @@ pub struct Blog {
     pub other_fields: serde_json::Map<String, serde_json::Value>,
 }
 
+// https://www.tumblr.com/docs/en/api/v2#posts---createreblog-a-post-neue-post-format
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreatePostRequest {
+    /// "An array of NPF content blocks to be used to make the post; in a reblog, this is any content you want to add."
+    pub content: Vec<tumblr_api::npf::ContentBlock>,
+    // /// "An array of NPF layout objects to be used to lay out the post content."
+    // pub layout: Option<Vec<tumblr_api::npf::LayoutObject>>, // TODO
+    /// "The initial state of the new post, such as "published" or "queued"."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<String>, // TODO enum
+    /// "The exact future date and time (ISO 8601 format) to publish the post, if desired. This parameter will be ignored unless the state parameter is "queue"."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publish_on: Option<String>, // TODO some other type
+    /// "The exact date and time (ISO 8601 format) in the past to backdate the post, if desired. This backdating does not apply to when the post shows up in the Dashboard."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>, // TODO some other type
+    /// "A comma-separated list of tags to associate with the post."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<String>,
+    /// "A source attribution for the post content."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
+    /// "Whether or not to share this via any connected Twitter account on post publish. Defaults to the blog's global setting."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_to_twitter: Option<bool>,
+    /// "Whether this should be a private answer, if this is an answer."
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_private: Option<bool>,
+    /// "A custom URL slug to use in the post's permalink URL"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    /// "Who can interact with this when reblogging"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interactability_reblog: Option<tumblr_api::api::ReblogInteractability>,
+}
+// TODO ^ currently just has the making a new post stuff, same endpoint is also the way to do reblogs.
+//      maybe best to do it as an enum of new post / reblog? since which fields are required is different
+//      between the two
+// TODO should we add `other_fields`s to requests too? or just response stuff
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct CreatePostResponse {
+    // TODO - "intentionally a string instead of an integer for 32bit device compatibility" - should make it an int
+    /// "the id of the created post"
+    id: String,
+    /// unknown/unhandled fields
+    #[serde(flatten)]
+    pub other_fields: serde_json::Map<String, serde_json::Value>,
+}
+
 
 pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
     // let client = setup_client(api_config)?;
@@ -162,13 +212,33 @@ pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
 
     // tracing::info!("{:#?}", user_info);
 
+    let request_body = CreatePostRequest {
+        content: vec![
+            tumblr_api::npf::ContentBlock::Text { text: "hello world!".to_string(), subtype: None, indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Chat)".to_string(),              subtype: Some(tumblr_api::npf::TextSubtype::Chat),              indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Heading1)".to_string(),          subtype: Some(tumblr_api::npf::TextSubtype::Heading1),          indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Heading2)".to_string(),          subtype: Some(tumblr_api::npf::TextSubtype::Heading2),          indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Indented)".to_string(),          subtype: Some(tumblr_api::npf::TextSubtype::Indented),          indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: OrderedListItem)".to_string(),   subtype: Some(tumblr_api::npf::TextSubtype::OrderedListItem),   indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Quirky)".to_string(),            subtype: Some(tumblr_api::npf::TextSubtype::Quirky),            indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: Quote)".to_string(),             subtype: Some(tumblr_api::npf::TextSubtype::Quote),             indent_level: None, formatting: None },
+            tumblr_api::npf::ContentBlock::Text { text: "hello world! (subtype: UnorderedListItem)".to_string(), subtype: Some(tumblr_api::npf::TextSubtype::UnorderedListItem), indent_level: None, formatting: None },
+        ],
+        state: None,
+        publish_on: None,
+        date: None,
+        tags: None,
+        source_url: Some("https://www.youtube.com/watch?v=dQw4w9WgXcQ".to_owned()),
+        send_to_twitter: None,
+        is_private: None,
+        slug: Some("this-post-gets-a-custom-slug".to_owned()),
+        interactability_reblog: None,
+    };
+
+    tracing::info!("{}", serde_json::to_string_pretty(&request_body).into_diagnostic()?);
+
     let make_post_response: ApiResponse<serde_json::Value> = client.post("https://api.tumblr.com/v2/blog/amggs-theme-testing-thing/posts")
-        .json(&serde_json::json!({
-            "content": [
-                {"type": "text", "text": "hello world"},
-            ],
-            "tags": "test, hello, world, why is this not an array",
-        }))
+        .json(&request_body)
         .send()
         .await
         .into_diagnostic()?
