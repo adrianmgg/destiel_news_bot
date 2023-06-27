@@ -15,7 +15,7 @@ miette = { version = "5.7.0", features = ["fancy"] }
 oauth2 = { version = "4.3.0", features = ["reqwest"] }
 pango = { version = "0.17.4", features = ["v1_50"] }
 pangocairo = "0.17.0"
-reqwest = { version = "0.11.16", features = ["json"] }
+reqwest = { version = "0.11.16", features = ["json", "multipart"] }
 schemars = { version = "0.8.12", features = ["url"] }
 serde = { version = "1.0.159", features = ["derive"] }
 serde_json = "1.0.95"
@@ -23,5 +23,5 @@ tokio = { version = "1.27.0", features = ["full"] }
 tokio-stream = "0.1.12"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.16"
-tumblr_api = { git = "https://github.com/adrianmgg/tumblr_api", version = "0.1.0" }
+tumblr_api = { git = "https://github.com/adrianmgg/tumblr_api", rev = "1cc22e10270042ced31e3acea3c1136c628423ba" }
 url = { version = "2.3.1", features = ["serde"] }

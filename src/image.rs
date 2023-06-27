@@ -26,12 +26,13 @@ pub fn generate_image<W: Write>(config: &ImageGenConfig, text: &str, out: &mut W
         .into_diagnostic()
         .wrap_err("failed to load template image")?;
     drop(infile);
+
     let pango_scale = pango::units_from_double(1.0);
 
     let ctx = cairo::Context::new(img).into_diagnostic()?;
 
     let layout = pangocairo::create_layout(&ctx);
-    layout.set_text(&text);
+    layout.set_text(text);
     layout.set_alignment(pango::Alignment::Center);
     layout.set_wrap(pango::WrapMode::WordChar);
     layout.set_width(config.headline_bounds.width * pango_scale);
@@ -39,7 +40,7 @@ pub fn generate_image<W: Write>(config: &ImageGenConfig, text: &str, out: &mut W
 
     let mut desc = pango::FontDescription::new();
     desc.set_family("Impact");
-    desc.set_stretch(pango::Stretch::Condensed);
+    // desc.set_stretch(pango::Stretch::Condensed);
     desc.set_size(config.max_font_size * pango_scale);
     layout.set_font_description(Some(&desc));
 
