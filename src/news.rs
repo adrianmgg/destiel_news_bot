@@ -80,10 +80,10 @@ mod tests {
     }
 }
 
-pub async fn request_news_source(client: reqwest::Client, source: NewsSource) -> Result<Option<NewsStory>> {
+pub async fn request_news_source(client: reqwest::Client, source: &NewsSource) -> Result<Option<NewsStory>> {
     match source {
         NewsSource::BBC { url } => {
-            let response: BBCApiResponse = client.get(url)
+            let response: BBCApiResponse = client.get(url.clone())
                 .send()
                 .await.into_diagnostic()?
                 .json()

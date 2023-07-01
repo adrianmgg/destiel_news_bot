@@ -104,30 +104,62 @@ async fn main() -> Result<()> {
                 .await
                 .into_diagnostic()?;
         }
-        destielbot_rs::cli::Commands::Thing { config_info } => {
-            let (config, _apiconfig) = load_config(&config_info)?;
-            let client = reqwest::Client::builder().build().into_diagnostic()?;
-            let stories: Vec<_> = tokio_stream::iter(config.news_sources)
-                .map(|source| {
-                    // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
-                    request_news_source(client.clone(), source)
-                })
-                .buffer_unordered(2)
-                .filter_map(|x| async move {
-                    match x {
-                        Ok(Some(story)) => Some(story),
-                        Ok(None) => None, // TODO - debug log here that it succeeded but got nothing?
-                        Err(e) => {
-                            // "{:?}" gives the format we want (miette's fancy stuff)
-                            tracing::error!("encountered error while requesting news: {:?}", e);
-                            None
+        destielbot_rs::cli::Commands::Run { config_info } => {
+            let (config, apiconfig) = load_config(&config_info)?;
+            let client = reqwest::Client::builder()
+                .build()
+                .into_diagnostic()?;
+            loop {
+                tracing::debug!("polling news sources");
+                let cur_stories: Vec<_> = tokio_stream::iter(&config.news_sources)
+                    .map(|source| {
+                        // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
+                        request_news_source(client.clone(), source)
+                    })
+                    .buffer_unordered(2)
+                    .filter_map(|x| async move {
+                        match x {
+                            Ok(Some(story)) => Some(story),
+                            Ok(None) => None, // TODO - debug log here that it succeeded but got nothing?
+                            Err(e) => {
+                                // "{:?}" gives the format we want (miette's fancy stuff)
+                                tracing::error!("encountered error while requesting news: {:?}", e);
+                                None
+                            }
                         }
-                    }
-                })
-                .collect::<Vec<_>>()
-                .await;
-            tracing::info!("{:?}", stories);
-        },
+                    })
+                    .collect::<Vec<_>>()
+                    .await;
+                if !cur_stories.is_empty() {
+                    tracing::info!("got stories: {:?}", cur_stories);
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(30)).await
+            }
+        }
+        // destielbot_rs::cli::Commands::Thing { config_info } => {
+        //     let (config, _apiconfig) = load_config(&config_info)?;
+        //     let client = reqwest::Client::builder().build().into_diagnostic()?;
+        //     let stories: Vec<_> = tokio_stream::iter(config.news_sources)
+        //         .map(|source| {
+        //             // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
+        //             request_news_source(client.clone(), source)
+        //         })
+        //         .buffer_unordered(2)
+        //         .filter_map(|x| async move {
+        //             match x {
+        //                 Ok(Some(story)) => Some(story),
+        //                 Ok(None) => None, // TODO - debug log here that it succeeded but got nothing?
+        //                 Err(e) => {
+        //                     // "{:?}" gives the format we want (miette's fancy stuff)
+        //                     tracing::error!("encountered error while requesting news: {:?}", e);
+        //                     None
+        //                 }
+        //             }
+        //         })
+        //         .collect::<Vec<_>>()
+        //         .await;
+        //     tracing::info!("{:?}", stories);
+        // },
         destielbot_rs::cli::Commands::ImageTest { config_info } => {
             let (config, _apiconfig) = load_config(&config_info)?;
             for (i, headline) in std::fs::read_to_string("headlines.txt")

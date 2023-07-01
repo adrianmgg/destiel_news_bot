@@ -29,10 +29,14 @@ pub enum Commands {
         #[arg(short, long, value_name = "FILE", default_value = "schemas")]
         out_dir: PathBuf,
     },
-    Thing {
+    Run {
         #[command(flatten)]
         config_info: ConfigFileArgs,
     },
+    // Thing {
+    //     #[command(flatten)]
+    //     config_info: ConfigFileArgs,
+    // },
     ImageTest {
         #[command(flatten)]
         config_info: ConfigFileArgs,
