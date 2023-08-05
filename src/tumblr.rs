@@ -69,71 +69,34 @@ pub async fn tumblr_auth_test(api_config: &TumblrApiConfig) -> Result<()> {
     Ok(())
 }
 
-pub async fn tumblr_api_test(_api_config: &TumblrApiConfig) -> Result<()> {
-    // let client = setup_client(api_config)?;
-
-    let token_info_str = std::fs::read_to_string(".oauth2-token.json")
-        .into_diagnostic()
-        .wrap_err("failed to read saved token")?;
-    let token_info: TokenInfo = serde_json::from_str(&token_info_str)
-        .into_diagnostic()
-        .wrap_err("failed to parse saved token")?;
-
-    if token_info.is_expired()? {
-        tracing::warn!("token appears to be expired!");
-    }
-
-    let mut headers = reqwest::header::HeaderMap::new();
-    // headers.insert("Authorization", format!("Bearer {}", token_info.token_result));
-    // TODO - make sure it's actually a bearer one?
-    let mut auth_value = reqwest::header::HeaderValue::from_str(
-        format!("Bearer {}", token_info.token_result.access_token().secret()).as_str(),
-    )
-    .into_diagnostic()?;
-    auth_value.set_sensitive(true);
-    headers.insert(reqwest::header::AUTHORIZATION, auth_value);
-
-    let client = reqwest::Client::builder()
-        .default_headers(headers)
-        .build()
-        .into_diagnostic()?;
-
-    let request_body = serde_json::json!({
-        "content": [
-            {"type": "image", "media": [{
-                "type": "image/png",
-                "identifier": "image-attachment-0",
-                "width": 813,
-                "height": 924,
-            }]},
-            {"type": "text", "text": "hello world!"},
-        ]
-    });
-
-    tracing::info!(
-        "{}",
-        serde_json::to_string_pretty(&request_body).into_diagnostic()?
+pub async fn tumblr_api_test(api_config: &TumblrApiConfig) -> Result<()> {
+    let client = tumblr_api::client::Client::new(
+        tumblr_api::client::OAuth2Credentials::builder()
+            .consumer_key(api_config.client_id.clone())
+            .consumer_secret(api_config.client_secret.clone())
+            .build()
     );
 
     let image_bytes = std::fs::read("./generated_0.png").into_diagnostic()?;
 
-    let body_part = reqwest::multipart::Part::text(serde_json::to_string(&request_body).into_diagnostic()?)
-        .mime_str("application/json").into_diagnostic()?;
-    let image_part = reqwest::multipart::Part::bytes(image_bytes)
-        .file_name("generated_0.png")
-        .mime_str("image/png").into_diagnostic()?;
-    let form = reqwest::multipart::Form::new()
-        .part("json", body_part)
-        .part("image-attachment-0", image_part);
-
-    let make_post_response: tumblr_api::api::ApiResponse<serde_json::Value> = client
-        .post("https://api.tumblr.com/v2/blog/amggs-theme-testing-thing/posts")
-        // .json(&request_body)
-        .multipart(form)
+    let make_post_response = client.create_post(
+        "amggs-theme-testing-thing",
+        vec![
+            tumblr_api::npf::ContentBlockImage::builder()
+                .media(vec![
+                    tumblr_api::npf::MediaObject::builder()
+                        .mime_type("image/png")
+                        .content(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment-0".into()))
+                        .build()
+                ])
+                .build(),
+            tumblr_api::npf::ContentBlockText::builder()
+                .text("hello world (posted using tumblr_api's Client!)")
+                .build(),
+        ],
+    )
+        .add_attachment(image_bytes.into(), "image/png", "image-attachment-0")
         .send()
-        .await
-        .into_diagnostic()?
-        .json()
         .await
         .into_diagnostic()?;
 
