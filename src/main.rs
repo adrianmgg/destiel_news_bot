@@ -6,6 +6,7 @@ use serde::Deserialize;
 use tokio::{fs, io::AsyncWriteExt};
 use futures::StreamExt;
 use tracing_subscriber::{prelude::*, Layer};
+use std::collections::HashSet;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct Config {
@@ -109,9 +110,16 @@ async fn main() -> Result<()> {
             let client = reqwest::Client::builder()
                 .build()
                 .into_diagnostic()?;
+            // let tumblrclient = tumblr_api::client::Client::new(
+            //     tumblr_api::client::OAuth2Credentials::builder()
+            //         .consumer_key(apiconfig.tumblr_api.client_id.clone())
+            //         .consumer_secret(apiconfig.tumblr_api.client_secret.clone())
+            //         .build()
+            // );
+            let mut seen_news_urls = HashSet::<String>::new(); // TODO should be saving/loading this so it works across runs?
             loop {
                 tracing::debug!("polling news sources");
-                let cur_stories: Vec<_> = tokio_stream::iter(&config.news_sources)
+                let mut cur_stories: Vec<_> = tokio_stream::iter(&config.news_sources)
                     .map(|source| {
                         // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
                         request_news_source(client.clone(), source)
@@ -130,9 +138,57 @@ async fn main() -> Result<()> {
                     })
                     .collect::<Vec<_>>()
                     .await;
+                cur_stories = cur_stories
+                    .into_iter()
+                    .filter_map(|story| {
+                        if seen_news_urls.contains(&story.story_url) {
+                            None
+                        } else {
+                            seen_news_urls.insert(story.story_url.clone());
+                            Some(story)
+                        }
+                    })
+                    .collect();
                 if !cur_stories.is_empty() {
-                    tracing::info!("got stories: {:?}", cur_stories);
+                    // TODO here temporarily until i implement token refreshing
+                    let tumblrclient = tumblr_api::client::Client::new(
+                        tumblr_api::client::OAuth2Credentials::builder()
+                            .consumer_key(apiconfig.tumblr_api.client_id.clone())
+                            .consumer_secret(apiconfig.tumblr_api.client_secret.clone())
+                            .build()
+                    );
+                    tracing::info!("got stories: {:?}", &cur_stories);
+                    for story in cur_stories {
+                        let mut image_data = Vec::<u8>::new();
+                        generate_image(&config.image_gen_cfg, &story.headline, &mut image_data)?;
+                        let create_post_result = tumblrclient.create_post(
+                            "amggs-theme-testing-thing",
+                            vec![
+                                tumblr_api::npf::ContentBlockText::builder()
+                                    .text(format!("got news story: {:?}", &story))
+                                    .build(),
+                                tumblr_api::npf::ContentBlockImage::builder()
+                                    .media(vec![tumblr_api::npf::MediaObject::builder()
+                                        .content(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment".into()))
+                                        .build()])
+                                    .alt_text("the alt text for this post")
+                                    .build(),
+                            ],
+                        )
+                            .add_attachment(reqwest::Body::from(image_data), "image/png", "image-attachment")
+                            .send()
+                            .await;
+                        match create_post_result {
+                            Err(err) => {
+                                tracing::error!("encountered error trying to post to tumblr: {:?}", err);
+                            }
+                            _ => {
+                                tracing::info!("posted to tumblr successfully");
+                            },
+                        }
+                    }
                 }
+
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await
             }
         }
