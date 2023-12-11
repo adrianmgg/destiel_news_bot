@@ -152,10 +152,10 @@ async fn main() -> Result<()> {
                 if !cur_stories.is_empty() {
                     // TODO here temporarily until i implement token refreshing
                     let tumblrclient = tumblr_api::client::Client::new(
-                        tumblr_api::client::OAuth2Credentials::builder()
-                            .consumer_key(apiconfig.tumblr_api.client_id.clone())
-                            .consumer_secret(apiconfig.tumblr_api.client_secret.clone())
-                            .build()
+                        tumblr_api::client::Credentials::new_oauth2(
+                            apiconfig.tumblr_api.client_id.clone(),
+                            apiconfig.tumblr_api.client_secret.clone(),
+                        )
                     );
                     tracing::info!("got stories: {:?}", &cur_stories);
                     for story in cur_stories {
@@ -164,12 +164,9 @@ async fn main() -> Result<()> {
                         let create_post_result = tumblrclient.create_post(
                             "amggs-theme-testing-thing",
                             vec![
-                                tumblr_api::npf::ContentBlockText::builder()
-                                    .text(format!("got news story: {:?}", &story))
+                                tumblr_api::npf::ContentBlockText::builder(format!("got news story: {:?}", &story))
                                     .build(),
-                                tumblr_api::npf::ContentBlockImage::builder()
-                                    .media(vec![tumblr_api::npf::MediaObject::builder()
-                                        .content(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment".into()))
+                                tumblr_api::npf::ContentBlockImage::builder(vec![tumblr_api::npf::MediaObject::builder(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment".into()))
                                         .build()])
                                     .alt_text("the alt text for this post")
                                     .build(),

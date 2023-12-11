@@ -5,6 +5,7 @@ use oauth2::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tumblr_api::client::Credentials;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct TumblrApiConfig {
@@ -71,10 +72,10 @@ pub async fn tumblr_auth_test(api_config: &TumblrApiConfig) -> Result<()> {
 
 pub async fn tumblr_api_test(api_config: &TumblrApiConfig) -> Result<()> {
     let client = tumblr_api::client::Client::new(
-        tumblr_api::client::OAuth2Credentials::builder()
-            .consumer_key(api_config.client_id.clone())
-            .consumer_secret(api_config.client_secret.clone())
-            .build()
+        Credentials::new_oauth2(
+            api_config.client_id.clone(),
+            api_config.client_secret.clone(),
+        )
     );
 
     let image_bytes = std::fs::read("./generated_0.png").into_diagnostic()?;
@@ -82,16 +83,14 @@ pub async fn tumblr_api_test(api_config: &TumblrApiConfig) -> Result<()> {
     let make_post_response = client.create_post(
         "amggs-theme-testing-thing",
         vec![
-            tumblr_api::npf::ContentBlockImage::builder()
-                .media(vec![
-                    tumblr_api::npf::MediaObject::builder()
+            tumblr_api::npf::ContentBlockImage::builder(
+                vec![
+                    tumblr_api::npf::MediaObject::builder(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment-0".into()))
                         .mime_type("image/png")
-                        .content(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment-0".into()))
                         .build()
                 ])
                 .build(),
-            tumblr_api::npf::ContentBlockText::builder()
-                .text("hello world (posted using tumblr_api's Client!)")
+            tumblr_api::npf::ContentBlockText::builder("hello world (posted using tumblr_api's Client!)")
                 .build(),
         ],
     )
