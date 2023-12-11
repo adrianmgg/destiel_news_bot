@@ -1,7 +1,7 @@
-use std::{path::PathBuf, io::Write};
-use miette::{Result, IntoDiagnostic, Context};
+use miette::{Context, IntoDiagnostic, Result};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use std::{io::Write, path::PathBuf};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct ImageGenConfig {
@@ -55,13 +55,19 @@ pub fn generate_image<W: Write>(config: &ImageGenConfig, text: &str, out: &mut W
         }
     }
 
-    ctx.move_to(config.headline_bounds.x.into(), config.headline_bounds.y.into());
+    ctx.move_to(
+        config.headline_bounds.x.into(),
+        config.headline_bounds.y.into(),
+    );
     ctx.set_source_rgb(0.0, 0.0, 0.0);
     pangocairo::layout_path(&ctx, &layout);
     ctx.set_line_width(4.0);
     ctx.stroke().into_diagnostic()?;
 
-    ctx.move_to(config.headline_bounds.x.into(), config.headline_bounds.y.into());
+    ctx.move_to(
+        config.headline_bounds.x.into(),
+        config.headline_bounds.y.into(),
+    );
     ctx.set_source_rgb(1.0, 1.0, 1.0);
     pangocairo::layout_path(&ctx, &layout);
     ctx.fill().into_diagnostic()?;

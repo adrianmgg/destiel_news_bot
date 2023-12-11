@@ -1,12 +1,17 @@
 use clap::Parser;
-use destielbot_rs::{cli::{Cli, ConfigFileArgs}, news::{request_news_source, NewsSource}, image::{ImageGenConfig, generate_image}, tumblr::TumblrApiConfig};
+use destielbot_rs::{
+    cli::{Cli, ConfigFileArgs},
+    image::{generate_image, ImageGenConfig},
+    news::{request_news_source, NewsSource},
+    tumblr::TumblrApiConfig,
+};
+use futures::StreamExt;
 use miette::{Context, IntoDiagnostic, Result};
 use schemars::JsonSchema;
 use serde::Deserialize;
-use tokio::{fs, io::AsyncWriteExt};
-use futures::StreamExt;
-use tracing_subscriber::{prelude::*, Layer};
 use std::collections::HashSet;
+use tokio::{fs, io::AsyncWriteExt};
+use tracing_subscriber::{prelude::*, Layer};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct Config {
@@ -22,10 +27,20 @@ struct ApiConfig {
 fn load_config(config_info: &ConfigFileArgs) -> Result<(Config, ApiConfig)> {
     let config = std::fs::read_to_string(&config_info.config_file_path)
         .into_diagnostic()
-        .wrap_err_with(|| format!("failed to open config file ({})", config_info.config_file_path.display()))?;
+        .wrap_err_with(|| {
+            format!(
+                "failed to open config file ({})",
+                config_info.config_file_path.display()
+            )
+        })?;
     let api_config = std::fs::read_to_string(&config_info.apiconfig_file_path)
         .into_diagnostic()
-        .wrap_err_with(|| format!("failed to open config file ({})", config_info.apiconfig_file_path.display()))?;
+        .wrap_err_with(|| {
+            format!(
+                "failed to open config file ({})",
+                config_info.apiconfig_file_path.display()
+            )
+        })?;
     let config = serde_json::from_str::<Config>(&config)
         .into_diagnostic()
         .wrap_err("failed to parse config file")?;
@@ -43,8 +58,10 @@ async fn main() -> Result<()> {
 
     layers.push(
         tracing_subscriber::fmt::layer()
-            .with_filter(tracing_subscriber::filter::LevelFilter::from_level(cli.log_level))
-            .boxed()
+            .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+                cli.log_level,
+            ))
+            .boxed(),
     );
 
     if let Some(logfile_path) = &cli.logfile {
@@ -60,14 +77,14 @@ async fn main() -> Result<()> {
         layers.push(
             tracing_subscriber::fmt::layer()
                 .with_writer(std::sync::Arc::new(logfile))
-                .with_filter(tracing_subscriber::filter::LevelFilter::from_level(cli.logfile_level))
-                .boxed()
+                .with_filter(tracing_subscriber::filter::LevelFilter::from_level(
+                    cli.logfile_level,
+                ))
+                .boxed(),
         );
     }
 
-    tracing_subscriber::registry()
-        .with(layers)
-        .init();
+    tracing_subscriber::registry().with(layers).init();
 
     match cli.command {
         destielbot_rs::cli::Commands::Schema { out_dir } => {
@@ -81,7 +98,12 @@ async fn main() -> Result<()> {
                 .open(&config_schema_file_path)
                 .await
                 .into_diagnostic()
-                .wrap_err_with(|| format!("failed to open output file ({})", config_schema_file_path.display()))?
+                .wrap_err_with(|| {
+                    format!(
+                        "failed to open output file ({})",
+                        config_schema_file_path.display()
+                    )
+                })?
                 .write_all(
                     serde_json::to_string_pretty(&schemars::schema_for!(Config))
                         .into_diagnostic()?
@@ -96,7 +118,12 @@ async fn main() -> Result<()> {
                 .open(&apiconfig_schema_file_path)
                 .await
                 .into_diagnostic()
-                .wrap_err_with(|| format!("failed to open output file ({})", apiconfig_schema_file_path.display()))?
+                .wrap_err_with(|| {
+                    format!(
+                        "failed to open output file ({})",
+                        apiconfig_schema_file_path.display()
+                    )
+                })?
                 .write_all(
                     serde_json::to_string_pretty(&schemars::schema_for!(ApiConfig))
                         .into_diagnostic()?
@@ -107,9 +134,7 @@ async fn main() -> Result<()> {
         }
         destielbot_rs::cli::Commands::Run { config_info } => {
             let (config, apiconfig) = load_config(&config_info)?;
-            let client = reqwest::Client::builder()
-                .build()
-                .into_diagnostic()?;
+            let client = reqwest::Client::builder().build().into_diagnostic()?;
             // let tumblrclient = tumblr_api::client::Client::new(
             //     tumblr_api::client::OAuth2Credentials::builder()
             //         .consumer_key(apiconfig.tumblr_api.client_id.clone())
@@ -155,33 +180,50 @@ async fn main() -> Result<()> {
                         tumblr_api::client::Credentials::new_oauth2(
                             apiconfig.tumblr_api.client_id.clone(),
                             apiconfig.tumblr_api.client_secret.clone(),
-                        )
+                        ),
                     );
                     tracing::info!("got stories: {:?}", &cur_stories);
                     for story in cur_stories {
                         let mut image_data = Vec::<u8>::new();
                         generate_image(&config.image_gen_cfg, &story.headline, &mut image_data)?;
-                        let create_post_result = tumblrclient.create_post(
-                            "amggs-theme-testing-thing",
-                            vec![
-                                tumblr_api::npf::ContentBlockText::builder(format!("got news story: {:?}", &story))
+                        let create_post_result = tumblrclient
+                            .create_post(
+                                "amggs-theme-testing-thing",
+                                vec![
+                                    tumblr_api::npf::ContentBlockText::builder(format!(
+                                        "got news story: {:?}",
+                                        &story
+                                    ))
                                     .build(),
-                                tumblr_api::npf::ContentBlockImage::builder(vec![tumblr_api::npf::MediaObject::builder(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment".into()))
-                                        .build()])
+                                    tumblr_api::npf::ContentBlockImage::builder(vec![
+                                        tumblr_api::npf::MediaObject::builder(
+                                            tumblr_api::npf::MediaObjectContent::Identifier(
+                                                "image-attachment".into(),
+                                            ),
+                                        )
+                                        .build(),
+                                    ])
                                     .alt_text("the alt text for this post")
                                     .build(),
-                            ],
-                        )
-                            .add_attachment(reqwest::Body::from(image_data), "image/png", "image-attachment")
+                                ],
+                            )
+                            .add_attachment(
+                                reqwest::Body::from(image_data),
+                                "image/png",
+                                "image-attachment",
+                            )
                             .send()
                             .await;
                         match create_post_result {
                             Err(err) => {
-                                tracing::error!("encountered error trying to post to tumblr: {:?}", err);
+                                tracing::error!(
+                                    "encountered error trying to post to tumblr: {:?}",
+                                    err
+                                );
                             }
                             _ => {
                                 tracing::info!("posted to tumblr successfully");
-                            },
+                            }
                         }
                     }
                 }
@@ -229,7 +271,7 @@ async fn main() -> Result<()> {
                     .wrap_err("failed to open output file")?;
                 generate_image(&config.image_gen_cfg, &headline, &mut outfile)?;
             }
-        },
+        }
         destielbot_rs::cli::Commands::TumblrAuthTest { config_info } => {
             let (_config, apiconfig) = load_config(&config_info)?;
             destielbot_rs::tumblr::tumblr_auth_test(&apiconfig.tumblr_api).await?;

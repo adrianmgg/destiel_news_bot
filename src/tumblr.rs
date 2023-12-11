@@ -38,7 +38,10 @@ pub async fn tumblr_auth_test(api_config: &TumblrApiConfig) -> Result<()> {
         ClientId::new(api_config.client_id.clone()),
         Some(ClientSecret::new(api_config.client_secret.clone())),
         AuthUrl::new("https://www.tumblr.com/oauth2/authorize".to_string()).into_diagnostic()?,
-        Some(TokenUrl::new("https://api.tumblr.com/v2/oauth2/token".to_string()).into_diagnostic()?),
+        Some(
+            TokenUrl::new("https://api.tumblr.com/v2/oauth2/token".to_string())
+                .into_diagnostic()?,
+        ),
     );
 
     let request_time = chrono::Utc::now();
@@ -71,29 +74,33 @@ pub async fn tumblr_auth_test(api_config: &TumblrApiConfig) -> Result<()> {
 }
 
 pub async fn tumblr_api_test(api_config: &TumblrApiConfig) -> Result<()> {
-    let client = tumblr_api::client::Client::new(
-        Credentials::new_oauth2(
-            api_config.client_id.clone(),
-            api_config.client_secret.clone(),
-        )
-    );
+    let client = tumblr_api::client::Client::new(Credentials::new_oauth2(
+        api_config.client_id.clone(),
+        api_config.client_secret.clone(),
+    ));
 
     let image_bytes = std::fs::read("./generated_0.png").into_diagnostic()?;
 
-    let make_post_response = client.create_post(
-        "amggs-theme-testing-thing",
-        vec![
-            tumblr_api::npf::ContentBlockImage::builder(
-                vec![
-                    tumblr_api::npf::MediaObject::builder(tumblr_api::npf::MediaObjectContent::Identifier("image-attachment-0".into()))
-                        .mime_type("image/png")
-                        .build()
+    let make_post_response = client
+        .create_post(
+            "amggs-theme-testing-thing",
+            vec![
+                tumblr_api::npf::ContentBlockImage::builder(vec![
+                    tumblr_api::npf::MediaObject::builder(
+                        tumblr_api::npf::MediaObjectContent::Identifier(
+                            "image-attachment-0".into(),
+                        ),
+                    )
+                    .mime_type("image/png")
+                    .build(),
                 ])
                 .build(),
-            tumblr_api::npf::ContentBlockText::builder("hello world (posted using tumblr_api's Client!)")
+                tumblr_api::npf::ContentBlockText::builder(
+                    "hello world (posted using tumblr_api's Client!)",
+                )
                 .build(),
-        ],
-    )
+            ],
+        )
         .add_attachment(image_bytes.into(), "image/png", "image-attachment-0")
         .send()
         .await

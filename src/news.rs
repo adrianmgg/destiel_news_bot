@@ -1,8 +1,8 @@
+use custom_debug::Debug;
 use miette::{IntoDiagnostic, Result};
 use reqwest::Url;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use custom_debug::Debug;
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub enum NewsSource {
@@ -67,7 +67,10 @@ mod tests {
     fn decode_bbc_response_empty() {
         assert_eq!(
             Some(BBCApiResponse { asset: None }),
-            serde_json::from_value::<Option<BBCApiResponse>>(json!({"isError":false,"pollPeriod":30000,"asset":{}})).unwrap()
+            serde_json::from_value::<Option<BBCApiResponse>>(
+                json!({"isError":false,"pollPeriod":30000,"asset":{}})
+            )
+            .unwrap()
         );
     }
 
@@ -80,22 +83,28 @@ mod tests {
     }
 }
 
-pub async fn request_news_source(client: reqwest::Client, source: &NewsSource) -> Result<Option<NewsStory>> {
+pub async fn request_news_source(
+    client: reqwest::Client,
+    source: &NewsSource,
+) -> Result<Option<NewsStory>> {
     match source {
         NewsSource::BBC { url } => {
-            let response: BBCApiResponse = client.get(url.clone())
+            let response: BBCApiResponse = client
+                .get(url.clone())
                 .send()
-                .await.into_diagnostic()?
+                .await
+                .into_diagnostic()?
                 .json()
-                .await.into_diagnostic()?;
+                .await
+                .into_diagnostic()?;
             match response.asset {
-                Some(asset) => Ok(Some(NewsStory{
+                Some(asset) => Ok(Some(NewsStory {
                     id: format!("BBC_{}", asset.asset_id),
                     headline: asset.headline,
-                    story_url: format!("https://bbc.co.uk{}", asset.asset_uri),  // TODO - use Url instead?
+                    story_url: format!("https://bbc.co.uk{}", asset.asset_uri), // TODO - use Url instead?
                 })),
                 _ => Ok(None),
             }
-        },
+        }
     }
 }

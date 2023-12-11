@@ -1,5 +1,4 @@
-
 pub mod cli;
-pub mod news;
 pub mod image;
+pub mod news;
 pub mod tumblr;
