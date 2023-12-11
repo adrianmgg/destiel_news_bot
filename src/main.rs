@@ -135,12 +135,11 @@ async fn main() -> Result<()> {
         destielbot_rs::cli::Commands::Run { config_info } => {
             let (config, apiconfig) = load_config(&config_info)?;
             let client = reqwest::Client::builder().build().into_diagnostic()?;
-            // let tumblrclient = tumblr_api::client::Client::new(
-            //     tumblr_api::client::OAuth2Credentials::builder()
-            //         .consumer_key(apiconfig.tumblr_api.client_id.clone())
-            //         .consumer_secret(apiconfig.tumblr_api.client_secret.clone())
-            //         .build()
-            // );
+            let tumblrclient =
+                tumblr_api::client::Client::new(tumblr_api::client::Credentials::new_oauth2(
+                    apiconfig.tumblr_api.client_id.clone(),
+                    apiconfig.tumblr_api.client_secret.clone(),
+                ));
             let mut seen_news_urls = HashSet::<String>::new(); // TODO should be saving/loading this so it works across runs?
             loop {
                 tracing::debug!("polling news sources");
@@ -175,13 +174,6 @@ async fn main() -> Result<()> {
                     })
                     .collect();
                 if !cur_stories.is_empty() {
-                    // TODO here temporarily until i implement token refreshing
-                    let tumblrclient = tumblr_api::client::Client::new(
-                        tumblr_api::client::Credentials::new_oauth2(
-                            apiconfig.tumblr_api.client_id.clone(),
-                            apiconfig.tumblr_api.client_secret.clone(),
-                        ),
-                    );
                     tracing::info!("got stories: {:?}", &cur_stories);
                     for story in cur_stories {
                         let mut image_data = Vec::<u8>::new();
