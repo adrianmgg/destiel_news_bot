@@ -143,7 +143,7 @@ async fn main() -> Result<()> {
             let mut seen_news_urls = HashSet::<String>::new(); // TODO should be saving/loading this so it works across runs?
             loop {
                 tracing::debug!("polling news sources");
-                let mut cur_stories: Vec<_> = tokio_stream::iter(&config.news_sources)
+                let cur_stories: Vec<_> = tokio_stream::iter(&config.news_sources)
                     .map(|source| {
                         // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
                         request_news_source(client.clone(), source)
@@ -161,8 +161,7 @@ async fn main() -> Result<()> {
                         }
                     })
                     .collect::<Vec<_>>()
-                    .await;
-                cur_stories = cur_stories
+                    .await
                     .into_iter()
                     .filter_map(|story| {
                         if seen_news_urls.contains(&story.story_url) {
@@ -180,13 +179,14 @@ async fn main() -> Result<()> {
                         generate_image(&config.image_gen_cfg, &story.headline, &mut image_data)?;
                         let create_post_result = tumblrclient
                             .create_post(
-                                "amggs-theme-testing-thing",
+                                // TODO make target blog settable in config file
+                                "destiel-news-bot",
                                 vec![
-                                    tumblr_api::npf::ContentBlockText::builder(format!(
-                                        "got news story: {:?}",
-                                        &story
-                                    ))
-                                    .build(),
+                                    // tumblr_api::npf::ContentBlockText::builder(format!(
+                                    //     "got news story: {:?}",
+                                    //     &story
+                                    // ))
+                                    // .build(),
                                     tumblr_api::npf::ContentBlockImage::builder(vec![
                                         tumblr_api::npf::MediaObject::builder(
                                             tumblr_api::npf::MediaObjectContent::Identifier(
@@ -195,10 +195,12 @@ async fn main() -> Result<()> {
                                         )
                                         .build(),
                                     ])
-                                    .alt_text("the alt text for this post")
+                                    // TODO make alt text template settable in config file
+                                    .alt_text(format!("the destiel confession meme edited to read \"I love you\" / \"{}\"", story.headline))
                                     .build(),
                                 ],
                             )
+                            .source_url(story.story_url)
                             .add_attachment(
                                 reqwest::Body::from(image_data),
                                 "image/png",
