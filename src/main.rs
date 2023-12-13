@@ -186,13 +186,6 @@ async fn main() -> Result<()> {
                             }
                         }
                     })
-                    // postprocess all the stories we got
-                    .map(|mut story| {
-                        for pp in &config.postprocessors {
-                            pp.postprocess(&mut story);
-                        }
-                        story
-                    })
                     // TODO can we avoid the collect into vec here? we just re-iter it right after
                     //      the await anyways
                     .collect::<Vec<_>>()
@@ -205,6 +198,13 @@ async fn main() -> Result<()> {
                             seen_news_urls.insert(story.story_url.clone());
                             Some(story)
                         }
+                    })
+                    // postprocess headlines
+                    .map(|mut story| {
+                        for pp in &config.postprocessors {
+                            pp.postprocess(&mut story);
+                        }
+                        story
                     })
                     .collect();
                 if !cur_stories.is_empty() {
