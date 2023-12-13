@@ -15,5 +15,11 @@
         { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/asia" } },
         { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/us" } },
         { "BBC": { "url": "http://polling.bbc.co.uk/news/breaking-news/audience/international" } }
-    ]
+    ],
+	"postprocessors": [
+		{
+			"pattern": "(?: - follow live|. Follow live)$",
+			"substitution": ""
+		}
+	]
 }

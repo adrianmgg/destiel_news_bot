@@ -2,7 +2,7 @@ use clap::Parser;
 use destielbot_rs::{
     cli::{Cli, ConfigFileArgs},
     image::{generate_image, ImageGenConfig},
-    news::{request_news_source, NewsSource},
+    news::{request_news_source, NewsSource, NewsStory},
     tumblr::TumblrApiConfig,
 };
 use futures::StreamExt;
@@ -13,10 +13,33 @@ use std::collections::HashSet;
 use tokio::{fs, io::AsyncWriteExt};
 use tracing_subscriber::{prelude::*, Layer};
 
+#[derive(Debug, JsonSchema)]
+struct IgnoreSchema {}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 struct Config {
     image_gen_cfg: ImageGenConfig,
+    /// api endpoints to pull articles from
     news_sources: Vec<NewsSource>,
+    postprocessors: Vec<Postprocessor>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct Postprocessor {
+    #[serde(deserialize_with = "serde_regex::deserialize")]
+    #[schemars(with = "String")]
+    pattern: regex::Regex,
+    substitution: String,
+}
+
+impl Postprocessor {
+    fn postprocess(&self, story: &mut NewsStory) {
+        // TODO can prob do this better/more optimized
+        story.headline = self
+            .pattern
+            .replace_all(&story.headline, &self.substitution)
+            .into();
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -143,6 +166,7 @@ async fn main() -> Result<()> {
             let mut seen_news_urls = HashSet::<String>::new(); // TODO should be saving/loading this so it works across runs?
             loop {
                 tracing::debug!("polling news sources");
+                // TODO wait the buffer should probably be before the request not after right? oops
                 let cur_stories: Vec<_> = tokio_stream::iter(&config.news_sources)
                     .map(|source| {
                         // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
@@ -160,6 +184,15 @@ async fn main() -> Result<()> {
                             }
                         }
                     })
+                    // postprocess all the stories we got
+                    .map(|mut story| {
+                        for pp in &config.postprocessors {
+                            pp.postprocess(&mut story);
+                        }
+                        story
+                    })
+                    // TODO can we avoid the collect into vec here? we just re-iter it right after
+                    //      the await anyways
                     .collect::<Vec<_>>()
                     .await
                     .into_iter()
