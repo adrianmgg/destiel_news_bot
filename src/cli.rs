@@ -32,19 +32,7 @@ pub enum Commands {
         #[command(flatten)]
         config_info: ConfigFileArgs,
     },
-    // Thing {
-    //     #[command(flatten)]
-    //     config_info: ConfigFileArgs,
-    // },
     ImageTest {
-        #[command(flatten)]
-        config_info: ConfigFileArgs,
-    },
-    TumblrAuthTest {
-        #[command(flatten)]
-        config_info: ConfigFileArgs,
-    },
-    TumblrApiTest {
         #[command(flatten)]
         config_info: ConfigFileArgs,
     },

@@ -3,7 +3,6 @@ use destielbot_rs::{
     cli::{Cli, ConfigFileArgs},
     image::{generate_image, ImageGenConfig},
     news::{request_news_source, NewsSource, NewsStory},
-    tumblr::TumblrApiConfig,
 };
 use futures::StreamExt;
 use miette::{Context, IntoDiagnostic, Result};
@@ -47,6 +46,12 @@ impl Postprocessor {
 #[derive(Debug, Deserialize, JsonSchema)]
 struct ApiConfig {
     tumblr_api: TumblrApiConfig,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct TumblrApiConfig {
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 fn load_config(config_info: &ConfigFileArgs) -> Result<(Config, ApiConfig)> {
@@ -260,30 +265,6 @@ async fn main() -> Result<()> {
                 tokio::time::sleep(std::time::Duration::from_secs(30)).await
             }
         }
-        // destielbot_rs::cli::Commands::Thing { config_info } => {
-        //     let (config, _apiconfig) = load_config(&config_info)?;
-        //     let client = reqwest::Client::builder().build().into_diagnostic()?;
-        //     let stories: Vec<_> = tokio_stream::iter(config.news_sources)
-        //         .map(|source| {
-        //             // client is already using an arc internally, so cloning it here doesn't actually clone the underlying stuff
-        //             request_news_source(client.clone(), source)
-        //         })
-        //         .buffer_unordered(2)
-        //         .filter_map(|x| async move {
-        //             match x {
-        //                 Ok(Some(story)) => Some(story),
-        //                 Ok(None) => None, // TODO - debug log here that it succeeded but got nothing?
-        //                 Err(e) => {
-        //                     // "{:?}" gives the format we want (miette's fancy stuff)
-        //                     tracing::error!("encountered error while requesting news: {:?}", e);
-        //                     None
-        //                 }
-        //             }
-        //         })
-        //         .collect::<Vec<_>>()
-        //         .await;
-        //     tracing::info!("{:?}", stories);
-        // },
         destielbot_rs::cli::Commands::ImageTest { config_info } => {
             let (config, _apiconfig) = load_config(&config_info)?;
             for (i, headline) in std::fs::read_to_string("headlines.txt")
@@ -300,14 +281,6 @@ async fn main() -> Result<()> {
                     .wrap_err("failed to open output file")?;
                 generate_image(&config.image_gen_cfg, &headline, &mut outfile)?;
             }
-        }
-        destielbot_rs::cli::Commands::TumblrAuthTest { config_info } => {
-            let (_config, apiconfig) = load_config(&config_info)?;
-            destielbot_rs::tumblr::tumblr_auth_test(&apiconfig.tumblr_api).await?;
-        }
-        destielbot_rs::cli::Commands::TumblrApiTest { config_info } => {
-            let (_config, apiconfig) = load_config(&config_info)?;
-            destielbot_rs::tumblr::tumblr_api_test(&apiconfig.tumblr_api).await?;
         }
     }
 
