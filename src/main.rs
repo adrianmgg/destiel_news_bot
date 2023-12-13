@@ -34,11 +34,13 @@ struct Postprocessor {
 
 impl Postprocessor {
     fn postprocess(&self, story: &mut NewsStory) {
+        let old_headline = story.headline.clone();
         // TODO can prob do this better/more optimized
         story.headline = self
             .pattern
             .replace_all(&story.headline, &self.substitution)
             .into();
+        tracing::info!("postprocessed headline {:?} -> {:?}", old_headline, &story.headline);
     }
 }
 
