@@ -21,6 +21,7 @@ struct Config {
     /// api endpoints to pull articles from
     news_sources: Vec<NewsSource>,
     postprocessors: Vec<Postprocessor>,
+    post: PostConfig,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -52,6 +53,13 @@ struct ApiConfig {
 pub struct TumblrApiConfig {
     pub client_id: String,
     pub client_secret: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PostConfig {
+    // TODO add alt text template to this
+    /// tags to be added to the post
+    pub tags: Vec<String>,
 }
 
 fn load_config(config_info: &ConfigFileArgs) -> Result<(Config, ApiConfig)> {
@@ -196,6 +204,7 @@ async fn main() -> Result<()> {
                     .collect::<Vec<_>>()
                     .await
                     .into_iter()
+                    // TODO make sure these filter_map calls are NOT ever gonna happen asynchronously
                     .filter_map(|story| {
                         if seen_news_urls.contains(&story.story_url) {
                             None
@@ -240,6 +249,7 @@ async fn main() -> Result<()> {
                                     .build(),
                                 ],
                             )
+                            .tags(config.post.tags.join(","))
                             .source_url(story.story_url)
                             .add_attachment(
                                 reqwest::Body::from(image_data),

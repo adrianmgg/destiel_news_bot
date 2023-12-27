@@ -21,5 +21,8 @@
 			"pattern": "(?: - follow live|. Follow live)$",
 			"substitution": ""
 		}
-	]
+	],
+	"post": {
+		"tags": ["destiel news", "news"]
+	}
 }
